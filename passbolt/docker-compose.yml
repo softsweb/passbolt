@@ -1,0 +1,52 @@
+services:
+  db:
+    image: mariadb:10.3
+    restart: unless-stopped
+    environment:
+      - MYSQL_RANDOM_ROOT_PASSWORD=true
+      - MYSQL_DATABASE=passbolt
+      - MYSQL_USER=passbolt
+      - MYSQL_PASSWORD=P4ssb0lt
+    volumes:
+      - database_volume:/var/lib/mysql
+    networks:
+      - traefik
+
+  passbolt:
+    image: passbolt/passbolt:latest-ce
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      - APP_FULL_BASE_URL=https://yourdomain.com
+      - DATASOURCES_DEFAULT_HOST=db
+      - DATASOURCES_DEFAULT_USERNAME=passbolt
+      - DATASOURCES_DEFAULT_PASSWORD=P4ssb0lt
+      - DATASOURCES_DEFAULT_DATABASE=passbolt
+      - EMAIL_TRANSPORT_DEFAULT_HOST=your-mail-server
+      - EMAIL_TRANSPORT_DEFAULT_PORT=587
+      - EMAIL_TRANSPORT_DEFAULT_USERNAME=$EMAIL_TRANSPORT_DEFAULT_USERNAME
+      - EMAIL_TRANSPORT_DEFAULT_PASSWORD=$EMAIL_TRANSPORT_DEFAULT_PASSWORD
+      - EMAIL_TRANSPORT_DEFAULT_TLS=true
+      - EMAIL_DEFAULT_FROM=no-reply@domain.tld
+    volumes:
+      - gpg_volume:/etc/passbolt/gpg
+      - jwt_volume:/etc/passbolt/jwt
+    command: ["/usr/bin/wait-for.sh", "-t", "0", "db:3306", "--", "/docker-entrypoint.sh"]
+    labels:
+      - "traefik.http.routers.passbolt.entrypoints=websecure"
+      - "traefik.http.routers.passbolt.rule=Host(`yourdomain.com`)"
+      - "traefik.http.routers.passbolt.tls=true"
+      - "traefik.http.routers.passbolt.tls.certresolver=production"
+      - "traefik.http.routers.passbolt-https.middlewares=passbolt@file"
+    networks:
+      - traefik
+
+volumes:
+  database_volume:
+  gpg_volume:
+  jwt_volume:
+
+networks:
+  traefik:
+    external: true
